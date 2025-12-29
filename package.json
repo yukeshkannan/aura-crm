@@ -1,0 +1,35 @@
+{
+  "name": "company-crm-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start:gateway": "npm run start -w gateway",
+    "start:auth": "npm run start -w auth-service",
+    "dev:gateway": "npm run dev -w gateway",
+    "dev:auth": "npm run dev -w auth-service",
+    "dev:contact": "npm run dev -w contact-service",
+    "dev:opportunity": "npm run dev -w opportunity-service",
+    "dev:task": "npm run dev -w task-service",
+    "dev:notification": "npm run dev -w notification-service",
+    "dev:analytics": "npm run dev -w analytics-service",
+    "dev:document": "npm run dev -w document-service",
+    "dev:product": "npm run dev -w product-service",
+    "dev:invoice": "npm run dev -w invoice-service",
+    "dev:ticket": "npm run dev -w ticket-service",
+    "dev:search": "npm run dev -w search-service",
+    "dev:hr": "npm run dev -w hr-service",
+    "dev:client": "npm run dev -w client",
+    "start:search-test": "concurrently \"npm run dev:gateway\" \"npm run dev:search\" \"npm run dev:contact\" \"npm run dev:opportunity\" \"npm run dev:ticket\" \"npm run dev:product\"",
+    "start:all": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:contact\" \"npm run dev:opportunity\" \"npm run dev:task\" \"npm run dev:notification\" \"npm run dev:analytics\" \"npm run dev:document\" \"npm run dev:product\" \"npm run dev:invoice\" \"npm run dev:ticket\" \"npm run dev:search\" \"npm run dev:hr\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "axios": "^1.13.2"
+  }
+}

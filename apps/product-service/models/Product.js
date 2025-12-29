@@ -1,0 +1,39 @@
+const { mongoose } = require('../../../packages/database');
+
+const productSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, 'Please add a product name'],
+    trim: true
+  },
+  sku: {
+    type: String,
+    required: [true, 'Please add a SKU'],
+    unique: true,
+    trim: true,
+    uppercase: true
+  },
+  price: {
+    type: Number,
+    required: [true, 'Please add a price']
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  category: {
+    type: String,
+    enum: ['Software', 'Hardware', 'Service', 'Subscription'],
+    default: 'Service'
+  },
+  stock: {
+    type: Number,
+    default: 0
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+module.exports = mongoose.model('Product', productSchema);
