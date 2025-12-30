@@ -16,11 +16,13 @@ export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
   /* Auto Check-in Logic - Only for Employees/Staff */
+  /* Auto Check-in Logic - Only for Employees/Staff */
   const autoCheckIn = async (parsedUser) => {
     if (parsedUser.role === 'Client') return; // Clients don't have attendance
-    if (parsedUser.role === 'Client') return; // Clients don't have attendance
     try {
-        const res = await fetch(`${API_URL}/api/attendance/check-in`, {
+        const url = `${API_URL}/api/attendance/check-in`;
+        console.log("Checking in via:", url);
+        const res = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId: parsedUser.id || parsedUser._id }),
@@ -77,7 +79,9 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const url = `${API_URL}/api/auth/login`;
+      console.log("Logging in via:", url);
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
