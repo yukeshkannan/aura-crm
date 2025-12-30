@@ -10,8 +10,8 @@ import axios from 'axios';
 const apiUrl = import.meta.env.VITE_API_URL;
 if (apiUrl && apiUrl !== '/') {
   axios.defaults.baseURL = apiUrl;
-} else if (apiUrl === '/') {
-    // If it is just slash, we leave it empty so axios uses relative path (which hits vercel proxy)
+} else {
+    // Default to empty (relative path) for proxy
     axios.defaults.baseURL = ''; 
 }
 

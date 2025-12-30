@@ -2,7 +2,8 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const rawApiUrl = import.meta.env.VITE_API_URL;
-const API_URL = (rawApiUrl && rawApiUrl !== '/') ? rawApiUrl : '';
+// If rawApiUrl is exactly '/', we use empty string so that fetch('/api...') works as relative path
+const API_URL = (rawApiUrl === '/') ? '' : (rawApiUrl || '');
 
 const AuthContext = createContext();
 
