@@ -52,10 +52,14 @@ function App() {
                  <Route path="payroll" element={<Payroll />} />
             </Route>
 
+            {/* Admin & Client Routes */}
+            <Route element={<ProtectedRoute allowedRoles={['Admin', 'Client']} />}>
+               <Route path="invoices" element={<Invoices />} />
+            </Route>
+
             {/* Admin Only Routes */}
             <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
               <Route path="users" element={<Users />} />
-              <Route path="invoices" element={<Invoices />} />
             </Route>
           </Route>
         </Route>

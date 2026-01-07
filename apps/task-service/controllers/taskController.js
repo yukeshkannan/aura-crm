@@ -6,7 +6,17 @@ const { formatResponse } = require('../../../packages/utils');
 // @access  Public
 exports.getTasks = async (req, res) => {
   try {
-    const tasks = await Task.find().sort({ dueDate: 1 }); // Sort by due date (soonest first)
+    console.log("GET /api/tasks Request Query:", req.query);
+    const { contactId, assignedTo } = req.query;
+    let query = {};
+    if (contactId) query.contactId = contactId;
+    if (assignedTo) query.assignedTo = assignedTo;
+
+    console.log("Constructed MongoDB Query:", JSON.stringify(query));
+
+    const tasks = await Task.find(query).sort({ dueDate: 1 }); 
+    console.log(`Found ${tasks.length} tasks matching query.`);
+    
     formatResponse(res, 200, 'Tasks retrieved successfully', tasks);
   } catch (err) {
     console.error("GET TASKS ERROR:", err);
@@ -85,7 +95,7 @@ exports.updateTask = async (req, res) => {
                 `;
 
                 // Fire and forget notification
-                axios.post('http://localhost:5005/api/notifications/email', {
+                axios.post('http://notification-service:5005/api/notifications/email', {
                     to: assignedUser.email,
                     subject,
                     message

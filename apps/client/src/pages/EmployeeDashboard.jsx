@@ -23,54 +23,73 @@ const EmployeeDashboard = () => {
     useEffect(() => {
         const fetchEmployeeData = async () => {
             try {
-                const [tasksRes, ticketsRes, attendanceRes] = await Promise.all([
-                    axios.get('/api/tasks'),
-                    axios.get('/api/tickets'),
-                    axios.get(`/api/attendance?userId=${user.id || user._id}`)
+                const userId = user.id || user._id;
+                // Fetch deeply to ensure we get specific data
+                const [tasksRes, ticketsRes, attendanceRes, oppRes] = await Promise.all([
+                    axios.get(`/api/tasks?assignedTo=${userId}`),
+                    axios.get(`/api/tickets?assignedTo=${userId}`),
+                    axios.get(`/api/attendance?userId=${userId}`),
+                    axios.get(`/api/opportunities?assignedTo=${userId}`) // Projects
                 ]);
 
-                const currentUserId = user?.id || user?._id;
+                // 1. Process Regular Tasks
+                let regularTasks = (tasksRes.data.data || []).filter(t => t.status !== 'Completed');
 
-                // Filter data for current user
-                const filteredTasks = (tasksRes.data.data || []).filter(t => {
-                    const assignedId = typeof t.assignedTo === 'object' ? t.assignedTo?._id : t.assignedTo;
-                    return assignedId === currentUserId && t.status !== 'Completed';
+                // 2. Process Projects (Opportunities) as Tasks
+                const projectTasks = (oppRes.data.data || []).map(opp => ({
+                    _id: opp._id,
+                    title: `Project: ${opp.title}`,
+                    priority: 'High',
+                    // Use employeeTaskStatus if set, otherwise map 'Won'->Completed, else 'In Progress' for active projects
+                    status: opp.employeeTaskStatus || (opp.stage === 'Won' ? 'Completed' : 'In Progress'),
+                    dueDate: opp.expectedCloseDate,
+                    isProject: true // Flag for UI differentiation if needed
+                })).filter(t => t.status !== 'Completed');
+
+                // 3. Merge & Sort
+                const allActionItems = [...regularTasks, ...projectTasks].sort((a, b) => {
+                    // Sort by Due Date (Ascending), put no-date last
+                    if (!a.dueDate) return 1;
+                    if (!b.dueDate) return -1;
+                    return new Date(a.dueDate) - new Date(b.dueDate);
                 });
-                const filteredTickets = (ticketsRes.data.data || []).filter(t => {
-                    const assignedId = typeof t.assignedTo === 'object' ? t.assignedTo?._id : t.assignedTo;
-                    return assignedId === currentUserId && t.status !== 'Resolved';
-                });
-                
-                // Calculate monthly attendance
+
+                // Tickets (Active Only)
+                const myTicketsData = (ticketsRes.data.data || []).filter(t => t.status !== 'Resolved' && t.status !== 'Rejected');
+
+                // Calculate Monthly Attendance
                 const currentMonth = new Date().getMonth();
                 const currentYear = new Date().getFullYear();
-                const monthlyAttendance = attendanceRes.data.data.filter(record => {
+                const monthlyAttendance = (attendanceRes.data.data || []).filter(record => {
                     const recordDate = new Date(record.date);
                     return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
                 }).length;
 
-                // Calculate next pay date (Last day of current month)
+                // Next Pay Date
                 const lastDay = new Date(currentYear, currentMonth + 1, 0);
                 const nextPayDate = lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
                 setStats({
-                    pendingTasks: filteredTasks.length,
-                    activeTickets: filteredTickets.length,
+                    pendingTasks: allActionItems.length,
+                    activeTickets: myTicketsData.length,
                     attendanceDays: monthlyAttendance,
                     nextPayDate: nextPayDate
                 });
-                setMyTasks(filteredTasks.slice(0, 5)); // Show top 5 tasks
+                
+                // Show items in list
+                setMyTasks(allActionItems); 
                 setLoading(false);
             } catch (err) {
                 console.error("Failed to fetch employee dashboard data", err);
-                setLoading(false);
+                // Fallback to avoid empty screen crash
+                setLoading(false); 
             }
         };
 
-        if (user?._id) {
+        if (user) {
             fetchEmployeeData();
         }
-    }, [user?._id]);
+    }, [user]);
 
     const dashboardCards = [
         { label: 'Pending Tasks', value: stats.pendingTasks, icon: Target, color: 'text-amber-600', bg: 'bg-amber-50', path: '/app/tasks' },
@@ -172,11 +191,11 @@ const EmployeeDashboard = () => {
                         <div className="space-y-6 border-l-2 border-dashed border-stone-100 ml-2 pl-6">
                             {myTasks.filter(t => {
                                 if (!t.dueDate) return false;
-                                return new Date(t.dueDate).toDateString() === new Date().toDateString();
+                                return new Date(t.dueDate).toLocaleDateString() === new Date().toLocaleDateString();
                             }).length > 0 ? (
                                 myTasks.filter(t => {
                                     if (!t.dueDate) return false;
-                                    return new Date(t.dueDate).toDateString() === new Date().toDateString();
+                                    return new Date(t.dueDate).toLocaleDateString() === new Date().toLocaleDateString();
                                 }).map((task, idx) => (
                                     <div key={idx} className="relative">
                                         <div className="absolute -left-8 top-1 w-4 h-4 rounded-full bg-amber-600 border-4 border-white shadow-sm" />

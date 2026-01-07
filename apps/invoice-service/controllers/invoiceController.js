@@ -13,7 +13,12 @@ const logError = (msg) => {
 exports.getInvoices = async (req, res) => {
   console.log("🔥 HIT: getInvoices"); // Debug Log
   try {
-    const invoices = await Invoice.find();
+    const { email } = req.query;
+    let query = {};
+    if (email) {
+        query.customerEmail = email;
+    }
+    const invoices = await Invoice.find(query);
     console.log(`✅ Retrieved ${invoices.length} invoices`);
     res.status(200).json({
       success: true,
@@ -63,12 +68,59 @@ exports.createInvoice = async (req, res) => {
     console.log("🔥 HIT: createInvoice");
     try {
         console.log("PAYLOAD:", req.body);
-        // Create simplest invoice possible to test
         const invoice = new Invoice(req.body);
+        
+        // Auto-set status to Sent since we are emailing immediately
+        invoice.status = 'Sent';
         await invoice.save();
         
-        console.log("✅ SAVED");
-        res.status(201).json({ success: true, data: invoice });
+        console.log("✅ SAVED Invoice:", invoice._id);
+
+        // --- EMAIL LOGIC START ---
+        if (invoice.customerEmail) {
+            try {
+                const emailContent = `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                        <h2 style="color: #2563eb;">Invoice #${invoice._id.toString().slice(-6).toUpperCase()}</h2>
+                        <p>Dear ${invoice.customerName},</p>
+                        <p>A new invoice has been generated for you.</p>
+                        
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                            <tr style="background-color: #f8fafc; text-align: left;">
+                                <th style="padding: 10px; border-bottom: 2px solid #ddd;">Description</th>
+                                <th style="padding: 10px; border-bottom: 2px solid #ddd;">Qty</th>
+                                <th style="padding: 10px; border-bottom: 2px solid #ddd;">Total</th>
+                            </tr>
+                            ${invoice.items.map(item => `
+                                <tr>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.description}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.quantity}</td>
+                                    <td style="padding: 10px; border-bottom: 1px solid #eee;">$${(item.price * item.quantity).toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </table>
+
+                        <div style="margin-top: 20px; text-align: right;">
+                            <h3 style="color: #0f172a;">Total Due: $${invoice.totalAmount.toFixed(2)}</h3>
+                            <p style="color: #64748b; font-size: 14px;">Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                `;
+
+                const NOTIFICATION_SERVICE = 'http://notification-service:5005/api/notifications/email';
+                await axios.post(NOTIFICATION_SERVICE, {
+                    to: invoice.customerEmail,
+                    subject: `New Invoice #${invoice._id.toString().slice(-6).toUpperCase()} from Company`,
+                    message: emailContent
+                });
+                console.log("📧 Email Sent to:", invoice.customerEmail);
+            } catch (emailErr) {
+                console.error("⚠️ Failed to send email (Invoice created anyway):", emailErr.message);
+            }
+        }
+        // --- EMAIL LOGIC END ---
+
+        res.status(201).json({ success: true, data: invoice, message: "Invoice created and sent!" });
     } catch (err) {
         console.error("💥 CRASH:", err);
         res.status(500).json({ error: err.message });
@@ -89,10 +141,44 @@ exports.updateInvoice = async (req, res) => {
       });
     }
 
+    const originalStatus = invoice.status;
+
     invoice = await Invoice.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
+
+    // --- NOTIFICATION LOGIC: Payment Received ---
+    if (req.body.status === 'Paid' && originalStatus !== 'Paid') {
+        try {
+             // Notify Admin
+             const adminEmail = process.env.SENDER_EMAIL || "admin@companycrm.com";
+             const NOTIFICATION_SERVICE = 'http://notification-service:5005/api/notifications/email'; // Direct Service URL
+             
+             const emailContent = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #10b981; border-radius: 10px; background-color: #f0fdf4;">
+                    <h2 style="color: #047857;">Payment Received!</h2>
+                    <p><strong>Invoice #${invoice._id.toString().slice(-6).toUpperCase()}</strong> has been marked as PAID.</p>
+                    <p>
+                        <strong>Ref:</strong> ${invoice._id}<br>
+                        <strong>Amount:</strong> $${invoice.totalAmount.toFixed(2)}<br>
+                        <strong>Customer:</strong> ${invoice.customerName}
+                    </p>
+                    <p>The system has updated the status automatically.</p>
+                </div>
+             `;
+
+             await axios.post(NOTIFICATION_SERVICE, {
+                to: adminEmail,
+                subject: `Payment Received: Invoice #${invoice._id.toString().slice(-6).toUpperCase()}`,
+                message: emailContent
+             });
+             console.log(`[Invoice Service] Payment notification sent to Admin (${adminEmail})`);
+
+        } catch (payNotifyErr) {
+            console.error("[Invoice Service] Failed to notify admin of payment:", payNotifyErr.message);
+        }
+    }
 
     res.status(200).json({
       success: true,
@@ -183,7 +269,7 @@ exports.sendInvoiceEmail = async (req, res) => {
         `;
 
         // Call Notification Service
-        const NOTIFICATION_SERVICE = 'http://localhost:5005/api/notifications/email'; // Direct Service URL
+        const NOTIFICATION_SERVICE = 'http://notification-service:5005/api/notifications/email'; // Direct Service URL
         
         await axios.post(NOTIFICATION_SERVICE, {
             to: invoice.customerEmail,

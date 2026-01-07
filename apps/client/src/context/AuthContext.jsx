@@ -127,12 +127,40 @@ export const AuthProvider = ({ children }) => {
     navigate('/');
   };
 
+  // Refresh User Data (Profile Updates)
+  const checkAuth = async () => {
+    if (!user && !localStorage.getItem('user')) return;
+    
+    // Get ID from current state or storage
+    const storedUser = user || JSON.parse(localStorage.getItem('user'));
+    if (!storedUser) return;
+    
+    try {
+        console.log("Refreshing user data...");
+        // Use the auth-service endpoint we just added
+        const res = await fetch(`${API_URL}/api/auth/users/${storedUser.id || storedUser._id}`);
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+            const updatedUser = data.data;
+            // Merge with existing to keep token if needed, though usually user obj is enough
+            const mergedUser = { ...storedUser, ...updatedUser };
+            
+            setUser(mergedUser);
+            localStorage.setItem('user', JSON.stringify(mergedUser));
+            console.log("User data refreshed:", mergedUser);
+        }
+    } catch (err) {
+        console.error("Failed to refresh user data", err);
+    }
+  };
+
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

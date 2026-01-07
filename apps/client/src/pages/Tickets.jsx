@@ -52,6 +52,19 @@ const Tickets = () => {
                 });
             }
 
+            // Filter: Clients only see their own tickets
+            if (user?.role === 'Client') {
+                const myContact = contactRes.data.data.find(c => c.email === user.email);
+                const myContactId = myContact ? myContact._id : null;
+                
+                allTickets = allTickets.filter(t => {
+                    const ticketCustomerId = typeof t.customerId === 'object' ? t.customerId?._id : t.customerId;
+                    const matchesContact = myContactId && ticketCustomerId === myContactId;
+                    const matchesEmail = t.guestEmail === user.email;
+                    return matchesContact || matchesEmail;
+                });
+            }
+
             setTickets(allTickets);
             setContacts(contactRes.data.data);
             setUsers(userRes.data?.data || []);
@@ -90,41 +103,7 @@ const Tickets = () => {
             if (ticket && ticket.status !== newStatus) {
                 await axios.put(`/api/tickets/${draggableId}`, { status: newStatus });
                 
-                // Notifications
-                // Notifications
-                // Notifications
-                if (newStatus === 'Resolved' || newStatus === 'Rejected') {
-                    const contact = contacts.find(c => c._id === (ticket.customerId?._id || ticket.customerId));
-                    
-                    // 1. Notify Customer
-                    if (contact?.email) {
-                        try {
-                            console.log(`[Notification] Sending email to ${contact.email} for status: ${newStatus}`);
-                            await axios.post('/api/notifications/email', {
-                                to: contact.email,
-                                subject: `Ticket Update: ${ticket.title} is ${newStatus}`,
-                                message: `Hello ${contact.name},<br>Your ticket "<strong>${ticket.title}</strong>" is now <strong>${newStatus}</strong>.`
-                            });
-                        } catch(e) { console.error("Customer Email failed", e); }
-                    }
-
-                    // 2. Notify Admins (if resolved by Employee)
-                    if (newStatus === 'Resolved' && user?.role === 'Employee') {
-                        const admins = users.filter(u => u.role === 'Admin');
-                        for (const admin of admins) {
-                            if (admin.email) {
-                                try {
-                                    console.log(`[Notification] Sending email to Admin ${admin.email}`);
-                                    await axios.post('/api/notifications/email', {
-                                        to: admin.email,
-                                        subject: `Ticket Resolved: ${ticket.title}`,
-                                        message: `Hello Admin,<br><br>Employee <strong>${user.name || 'An Employee'}</strong> has resolved the ticket "<strong>${ticket.title}</strong>".<br>Please review if necessary.`
-                                    });
-                                } catch(e) { console.error("Admin Email failed", e); }
-                            }
-                        }
-                    }
-                }
+                // Notifications handled by backend service
             }
         } catch (err) {
             console.error("Failed to update status", err);
@@ -307,7 +286,86 @@ const Tickets = () => {
                     layout="grid"
                 />
             ) : (
-                 <div className="flex-1 p-8 text-center text-slate-400 italic">List View Coming Soon</div>
+
+                /* List View Implementation */
+                <div className="flex-1 p-8 overflow-y-auto">
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th className="px-6 py-4 font-bold text-slate-600">Ticket Details</th>
+                                    <th className="px-6 py-4 font-bold text-slate-600">Customer</th>
+                                    <th className="px-6 py-4 font-bold text-slate-600">Assignee</th>
+                                    <th className="px-6 py-4 font-bold text-slate-600">Priority</th>
+                                    <th className="px-6 py-4 font-bold text-slate-600">Status</th>
+                                    <th className="px-6 py-4 font-bold text-slate-600 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {tickets.map(ticket => {
+                                    const contact = contacts.find(c => c._id === (ticket.customerId?._id || ticket.customerId));
+                                    const assignedUser = users.find(u => u._id === (ticket.assignedTo?._id || ticket.assignedTo));
+                                    return (
+                                        <tr key={ticket._id} className="hover:bg-slate-50 transition-colors group">
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-900">{ticket.title}</div>
+                                                <div className="text-xs text-slate-500 mt-1 truncate max-w-[200px]">{ticket.description}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {contact ? (
+                                                    <div>
+                                                        <div className="font-bold text-slate-700">{contact.name}</div>
+                                                        <div className="text-[10px] text-slate-400">{contact.company || 'Direct'}</div>
+                                                    </div>
+                                                ) : <span className="text-slate-400 italic">--</span>}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                {assignedUser ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                                                            {assignedUser.name.charAt(0)}
+                                                        </div>
+                                                        <span className="font-medium text-slate-700">{assignedUser.name}</span>
+                                                    </div>
+                                                ) : <span className="text-slate-400 italic">Unassigned</span>}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded text-xs font-bold ${getPriorityStyle(ticket.priority)}`}>
+                                                    {ticket.priority}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                                                    ticket.status === 'Resolved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                                    ticket.status === 'Rejected' ? 'bg-red-50 text-red-600 border-red-200' :
+                                                    ticket.status === 'In Progress' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' :
+                                                    'bg-blue-50 text-blue-600 border-blue-200'
+                                                }`}>
+                                                    {ticket.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => handleEdit(ticket)} className="p-2 hover:bg-slate-200 rounded text-slate-500">
+                                                        <List size={16} />
+                                                    </button>
+                                                    <button onClick={() => setShowDeleteConfirm(ticket)} className="p-2 hover:bg-red-50 text-red-500 rounded">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {tickets.length === 0 && (
+                                    <tr>
+                                        <td colSpan="6" className="p-8 text-center text-slate-400">No tickets found.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
 
             {/* Drawer */}

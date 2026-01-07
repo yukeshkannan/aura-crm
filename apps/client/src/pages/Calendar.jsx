@@ -133,22 +133,33 @@ const Calendar = () => {
     const eventStyleGetter = (event) => {
         let borderColor = '#0ea5e9'; // Default Blue
         let bgColor = '#f0f9ff';
+        let color = '#1c1917';
         
         if (event.type === 'task') {
             borderColor = '#d97706'; // Amber
             bgColor = '#fffbeb';
+            if (event.status === 'Completed') {
+                 borderColor = '#78716c'; // Stone
+                 bgColor = '#f5f5f4'; // Stone 100
+                 color = '#78716c';
+            }
         } else if (event.type === 'opportunity') {
             borderColor = '#6366f1'; // Indigo
             bgColor = '#eef2ff';
         } else if (event.type === 'invoice') {
             borderColor = '#10b981'; // Emerald
             bgColor = '#ecfdf5';
+             if (event.status === 'Paid') {
+                 borderColor = '#059669'; // Emerald 600
+                 bgColor = '#d1fae5'; // Emerald 100
+                 color = '#065f46'; // Emerald 800
+            }
         }
 
         return {
             style: {
                 backgroundColor: bgColor,
-                color: '#1c1917',
+                color: color,
                 borderRadius: '6px',
                 border: 'none',
                 borderLeft: `3px solid ${borderColor}`,
@@ -160,16 +171,28 @@ const Calendar = () => {
         };
     };
 
-    const EventComponent = ({ event }) => (
-        <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex-shrink-0">
-                {event.type === 'task' && <Target size={10} className="text-amber-600" />}
-                {event.type === 'opportunity' && <Zap size={10} className="text-indigo-600" />}
-                {event.type === 'invoice' && <Receipt size={10} className="text-emerald-600" />}
+    const EventComponent = ({ event }) => {
+        const isPaid = event.type === 'invoice' && event.status === 'Paid';
+        const isCompleted = event.type === 'task' && event.status === 'Completed';
+
+        return (
+            <div className={`flex items-center gap-2 overflow-hidden ${isCompleted ? 'opacity-60' : ''}`}>
+                <div className="flex-shrink-0">
+                    {event.type === 'task' && !isCompleted && <Target size={10} className="text-amber-600" />}
+                    {event.type === 'task' && isCompleted && <CheckSquare size={10} className="text-stone-500" />}
+                    
+                    {event.type === 'opportunity' && <Zap size={10} className="text-indigo-600" />}
+                    
+                    {event.type === 'invoice' && !isPaid && <Receipt size={10} className="text-emerald-600" />}
+                    {event.type === 'invoice' && isPaid && <CheckSquare size={10} className="text-emerald-700" />}
+                </div>
+                <span className={`truncate uppercase tracking-tight text-[10px] ${isCompleted ? 'line-through decoration-stone-400' : ''}`}>
+                    {event.title}
+                </span>
+                {isPaid && <span className="ml-auto text-[8px] font-black bg-emerald-200 text-emerald-800 px-1 rounded">PAID</span>}
             </div>
-            <span className="truncate uppercase tracking-tight text-[10px]">{event.title}</span>
-        </div>
-    );
+        );
+    };
 
     if (loading) return <LoadingSpinner message="Orchestrating Schedule..." />;
 

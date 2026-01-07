@@ -106,7 +106,6 @@ const Sidebar = () => {
   // Financials (Strictly Admin only for now)
   if (user?.role === 'Admin') {
     navItems.push({ label: 'Invoices', path: '/app/invoices', icon: <Receipt size={20} /> });
-    navItems.push({ label: 'Payments', path: '/app/payments', icon: <DollarSign size={20} /> });
   }
 
   // 3. Operational items for everyone

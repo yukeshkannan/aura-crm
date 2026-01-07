@@ -19,6 +19,10 @@ const sendEmail = async (toEmail, subject, htmlContent) => {
     return true;
   } catch (error) {
     console.error(`❌ Failed to send email to ${toEmail}:`, error.message);
+    // Log extended error info if available
+    if (error.response && error.response.text) {
+        console.error('   Brevo Error Details:', error.response.text);
+    }
     return false;
   }
 };

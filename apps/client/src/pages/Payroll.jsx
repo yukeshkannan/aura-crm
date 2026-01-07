@@ -245,8 +245,9 @@ const Payroll = () => {
     };
 
     const filteredEmployees = employees.filter(emp => 
-        emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        emp.email.toLowerCase().includes(searchTerm.toLowerCase())
+        emp.role !== 'Client' && 
+        (emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        emp.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     // Calculate Real Stats

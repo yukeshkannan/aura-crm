@@ -12,7 +12,7 @@ const initScheduledJobs = () => {
     try {
       // 1. Fetch Pending Tasks from Task Service via Gateway (or direct)
       // Using direct port 5004 to avoid circular dependency issues if Gateway is down
-      const response = await axios.get('http://localhost:5004/api/tasks');
+      const response = await axios.get('http://task-service:5004/api/tasks');
       
       if (!response.data.success) {
         throw new Error('Failed to fetch tasks');

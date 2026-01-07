@@ -7,7 +7,15 @@ const { formatResponse } = require('../../../packages/utils');
 exports.getOpportunities = async (req, res) => {
   try {
     console.log('[Opportunity Service] Fetching all opportunities...');
-    const opportunities = await Opportunity.find().sort({ createdAt: -1 });
+    const { contactId } = req.query;
+    let query = {};
+    if (contactId) {
+        query.contactId = contactId;
+    }
+    if (req.query.assignedTo) {
+        query.assignedTo = req.query.assignedTo;
+    }
+    const opportunities = await Opportunity.find(query).sort({ createdAt: -1 });
     console.log(`[Opportunity Service] Found ${opportunities.length} opportunities`);
     formatResponse(res, 200, 'Opportunities retrieved successfully', opportunities);
   } catch (err) {
@@ -50,18 +58,41 @@ exports.createOpportunity = async (req, res) => {
 // @access  Public
 exports.updateOpportunity = async (req, res) => {
   try {
+    console.log(`[Controller] UPDATE HIT. ID: ${req.params.id}`);
+    console.log(`[Controller] Body Modules: ${req.body.modules ? req.body.modules.length : 'Missing'}`);
+    
     let opportunity = await Opportunity.findById(req.params.id);
 
     if (!opportunity) {
       return formatResponse(res, 404, 'Opportunity not found');
     }
 
-    opportunity = await Opportunity.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
+    // Manual update to ensure array handling is correct
+    if (req.body.modules) {
+        opportunity.modules = req.body.modules;
+    }
+    // Update other fields
+    const allowedUpdates = ['title', 'amount', 'stage', 'employeeTaskStatus', 'contactId', 'assignedTo', 'expectedCloseDate'];
+    allowedUpdates.forEach(update => {
+        if (req.body[update] !== undefined) {
+            opportunity[update] = req.body[update];
+        }
     });
 
-    formatResponse(res, 200, 'Opportunity updated successfully', opportunity);
+    const beforeSave = JSON.parse(JSON.stringify(opportunity));
+    await opportunity.save();
+
+    // Return DEBUG info
+    res.status(200).json({
+        success: true,
+        data: opportunity,
+        debug: {
+            receivedModulesCount: req.body.modules ? req.body.modules.length : 'undefined',
+            beforeSaveModulesCount: beforeSave.modules ? beforeSave.modules.length : 'undefined',
+            savedModulesCount: opportunity.modules ? opportunity.modules.length : 'undefined'
+        }
+    });
+
   } catch (err) {
     formatResponse(res, 500, 'Server Error', err.message);
   }

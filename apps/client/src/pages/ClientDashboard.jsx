@@ -24,37 +24,44 @@ const ClientDashboard = () => {
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
-                // 1. Find the contact associated with this user's email
-                const contactsRes = await axios.get('/api/contacts');
-                const contact = (contactsRes.data.data || []).find(c => c.email === user?.email);
+                
+                // 1. Fetch Contact First
+                const contactsRes = await axios.get('/api/contacts?email=' + user?.email);
+                const allContacts = (contactsRes.data.data || []);
+                let contact = allContacts.find(c => c.email === user?.email);
 
-                if (!contact) {
-                    setClientData(prev => ({ ...prev, noContact: true }));
-                    setLoading(false);
-                    return;
-                }
+                // 2. Prepare calls based on contact existence
+                const invoiceReq = axios.get(`/api/invoices?email=${user?.email}`);
+                const ticketReq = axios.get(`/api/tickets?email=${user?.email}`);
+                
+                // Only request projects/tasks if we have a valid contact ID to filter by
+                const projectReq = contact 
+                    ? axios.get(`/api/opportunities?contactId=${contact._id}`) 
+                    : Promise.resolve({ data: { data: [] } });
 
-                // 2. Fetch everything else
+                const taskReq = contact 
+                    ? axios.get(`/api/tasks?contactId=${contact._id}`) 
+                    : Promise.resolve({ data: { data: [] } });
+
                 const [invRes, ticketRes, oppRes, taskRes] = await Promise.all([
-                    axios.get('/api/invoices'),
-                    axios.get('/api/tickets'),
-                    axios.get('/api/opportunities'),
-                    axios.get('/api/tasks')
+                    invoiceReq, ticketReq, projectReq, taskReq
                 ]);
 
-                const myInvoices = (invRes.data.data || []).filter(inv => inv.customerEmail === contact.email);
-                const myTickets = (ticketRes.data.data || []).filter(t => t.customerId?._id === contact._id || t.customerId === contact._id);
-                // "Projects" are Won Opportunities
-                const myProjects = (oppRes.data.data || []).filter(o => (o.contactId?._id === contact._id || o.contactId === contact._id) && o.stage === 'Won');
-                // "Milestones" are Tasks linked to this contact
-                const myMilestones = (taskRes.data.data || []).filter(t => t.contactId?._id === contact._id || t.contactId === contact._id);
+                // 3. Process Data
+                const myInvoices = invRes.data.data || [];
+                const myTickets = ticketRes.data.data || [];
+                // Filtering stage locally just in case, but data is now securely limited by backend
+                const myProjects = (oppRes.data.data || []).filter(o => o.stage !== 'Lost');
+                const myMilestones = taskRes.data.data || [];
 
                 setClientData({
                     contact,
                     projects: myProjects,
                     milestones: myMilestones,
                     invoices: myInvoices,
-                    tickets: myTickets
+                    tickets: myTickets,
+                    // If no contact, we don't block the UI entirely, just show empty projects
+                    noContact: false 
                 });
                 setLoading(false);
             } catch (err) {
@@ -149,56 +156,7 @@ const ClientDashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
                 {/* Active Project View */}
                 <div className="lg:col-span-2 space-y-8">
-                    <div className="bg-stone-50 rounded-[48px] p-10 border border-stone-100">
-                        <div className="flex justify-between items-start mb-10">
-                            <div>
-                                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Primary Focus</span>
-                                <h3 className="text-2xl font-black text-stone-900 uppercase italic">
-                                    {activeProject ? activeProject.name : 'No Active Project'}
-                                </h3>
-                            </div>
-                            <span className="px-4 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full uppercase tracking-widest border border-amber-200">
-                                Phase: Implementation
-                            </span>
-                        </div>
-
-                        {/* Progress Bar Rendering */}
-                        <div className="space-y-4 mb-10">
-                            <div className="flex justify-between text-xs font-black text-stone-500 uppercase tracking-widest">
-                                <span>Overall Progress</span>
-                                <span>{clientData.milestones.length > 0 ? Math.round((clientData.milestones.filter(m => m.status === 'Completed').length / clientData.milestones.length) * 100) : 0}%</span>
-                            </div>
-                            <div className="h-2.5 bg-stone-200 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-amber-600 rounded-full" 
-                                    style={{ width: `${clientData.milestones.length > 0 ? (clientData.milestones.filter(m => m.status === 'Completed').length / clientData.milestones.length) * 100 : 0}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        {/* Recent Milestones */}
-                        <div className="space-y-4">
-                            <h4 className="text-xs font-black text-stone-900 uppercase tracking-widest flex items-center gap-2">
-                                <Clock size={14} className="text-amber-600" /> Recent Sprints
-                            </h4>
-                            <div className="divide-y divide-stone-100">
-                                {clientData.milestones.slice(0, 3).map((item, idx) => (
-                                    <div key={idx} className="py-4 flex items-center justify-between group cursor-pointer hover:bg-stone-100/50 px-2 rounded-xl transition-all">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${item.status === 'Completed' ? 'bg-emerald-100 text-emerald-600' : 'bg-stone-100 text-stone-400'}`}>
-                                                {item.status === 'Completed' ? <CheckCircle size={16} /> : <Calendar size={16} />}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-stone-800">{item.title}</p>
-                                                <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRight size={18} className="text-stone-200 group-hover:text-amber-600 transition-all" />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                     <ActiveProjectsSection projects={clientData.projects} milestones={clientData.milestones} />
                 </div>
 
                 {/* Billing Summary Bar */}
@@ -281,5 +239,134 @@ const StatCard = ({ title, value, icon, sub, path }) => {
         </div>
     );
 };
+
+/* Helper to generate mock modules based on stage */
+const generateModules = (stage) => {
+    const modules = [
+         { name: 'Requirements Analysis', status: 'Completed' },
+         { name: 'UI/UX Design', status: 'Completed' },
+         { name: 'System Architecture', status: 'Completed' },
+         { name: 'Database Setup', status: 'In Progress' },
+         { name: 'API Development', status: 'Pending' },
+         { name: 'Frontend Integration', status: 'Pending' },
+         { name: 'Quality Assurance', status: 'Pending' },
+         { name: 'UAT Deployment', status: 'Pending' },
+         { name: 'Final Release', status: 'Pending' }
+    ];
+
+    if (stage === 'New') return modules.map(m => ({...m, status: 'Pending'}));
+    if (stage === 'Discovery') return modules.map((m, i) => i < 2 ? {...m, status: 'Completed'} : {...m, status: 'Pending'});
+    if (stage === 'Proposal') return modules.map((m, i) => i < 3 ? {...m, status: 'Completed'} : {...m, status: 'Pending'});
+    if (stage === 'Negotiation') return modules.map((m, i) => i < 4 ? {...m, status: 'Completed'} : {...m, status: 'Pending'});
+    if (stage === 'Won') return modules.map((m, i) => i < 6 ? {...m, status: 'Completed'} : i === 6 ? {...m, status: 'In Progress'} : {...m, status: 'Pending'});
+    
+    return modules;
+};
+
+const ActiveProjectsSection = ({ projects }) => {
+    const [selectedProject, setSelectedProject] = useState(null);
+
+    // List View
+    if (!selectedProject) {
+        return (
+            <div className="bg-stone-50 rounded-[48px] p-10 border border-stone-100 min-h-[500px]">
+                 <div className="mb-10">
+                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Your Portfolio</span>
+                    <h3 className="text-2xl font-black text-stone-900 uppercase italic">
+                        Active Engagements ({projects.length})
+                    </h3>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-4">
+                    {projects.length === 0 ? (
+                        <div className="text-center py-20 text-stone-400 font-bold">No active projects found.</div>
+                    ) : (
+                        projects.map(proj => {
+                            const progKey = proj.stage === 'New' ? 5 : proj.stage === 'Won' ? 65 : 30;
+                             return (
+                                <div key={proj._id} onClick={() => setSelectedProject(proj)} className="bg-white p-6 rounded-3xl border border-stone-100 hover:border-amber-500/30 hover:shadow-xl transition-all cursor-pointer group">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h4 className="text-lg font-black text-stone-900">{proj.title}</h4>
+                                        <span className="text-[10px] bg-stone-100 px-3 py-1 rounded-full font-black uppercase tracking-widest text-stone-500">{proj.stage}</span>
+                                    </div>
+                                    <div className="flex justify-between items-end">
+                                        <div className="text-xs text-stone-400 font-bold">Last update: Recent</div>
+                                        <div className="flex items-center gap-2 text-xs font-black text-amber-600 group-hover:translate-x-1 transition-transform">
+                                            View Progress <ChevronRight size={14} />
+                                        </div>
+                                    </div>
+                                    <div className="mt-4 h-1.5 bg-stone-100 rounded-full overflow-hidden">
+                                        <div className="h-full bg-amber-500" style={{ width: `${progKey}%` }}></div>
+                                    </div>
+                                </div>
+                             )
+                        })
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Detail View
+    const modules = selectedProject.modules && selectedProject.modules.length > 0 
+        ? selectedProject.modules.map(m => ({
+            ...m,
+            status: m.clientStatus || 'Pending' // Use clientStatus for display
+        }))
+        : generateModules(selectedProject.stage);
+
+    const completedCount = modules.filter(m => m.status === 'Completed').length;
+    const progress = Math.round((completedCount / modules.length) * 100);
+
+    return (
+        <div className="bg-stone-50 rounded-[48px] p-10 border border-stone-100 min-h-[500px] animate-in slide-in-from-right duration-300">
+             <button onClick={() => setSelectedProject(null)} className="mb-6 flex items-center gap-2 text-xs font-black text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-widest">
+                 <ChevronRight size={14} className="rotate-180" /> Back to List
+             </button>
+
+             <div className="flex justify-between items-start mb-10">
+                <div>
+                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-2 block">Project Deep Dive</span>
+                    <h3 className="text-2xl font-black text-stone-900 uppercase italic">
+                        {selectedProject.title}
+                    </h3>
+                </div>
+                <span className="px-4 py-1.5 bg-amber-100 text-amber-700 text-[10px] font-black rounded-full uppercase tracking-widest border border-amber-200">
+                    Stage: {selectedProject.stage}
+                </span>
+            </div>
+
+            <div className="space-y-4 mb-10">
+                <div className="flex justify-between text-xs font-black text-stone-500 uppercase tracking-widest">
+                    <span>Module Completion</span>
+                    <span>{progress}%</span>
+                </div>
+                <div className="h-2.5 bg-stone-200 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-amber-600 rounded-full transition-all duration-1000 ease-out" 
+                        style={{ width: `${progress}%` }}
+                    ></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                 {modules.map((mod, idx) => (
+                     <div key={idx} className="bg-white p-4 rounded-2xl border border-stone-100 flex items-center justify-between">
+                         <span className="text-xs font-bold text-stone-700">{mod.name}</span>
+                         {mod.status === 'Completed' ? (
+                             <CheckCircle size={16} className="text-emerald-500" />
+                         ) : mod.status === 'In Progress' ? (
+                             <div className="w-4 h-4 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
+                         ) : (
+                             <div className="w-4 h-4 rounded-full border-2 border-stone-200" />
+                         )}
+                     </div>
+                 ))}
+            </div>
+        </div>
+    );
+};
+
+
 
 export default ClientDashboard;

@@ -26,6 +26,9 @@ RUN echo "server { \
     index index.html index.htm; \
     try_files \$uri \$uri/ /index.html; \
     } \
+    location /api/opportunities { \
+    proxy_pass http://opportunity-service:5003; \
+    } \
     location /api { \
     proxy_pass http://gateway:5000; \
     } \

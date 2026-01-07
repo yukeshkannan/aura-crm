@@ -43,12 +43,46 @@ exports.getDashboardData = async (req, res) => {
     const overdueInvoices = invoices.filter(inv => inv.status === 'Overdue').length;
 
     const openTickets = tickets.filter(t => t.status !== 'Closed' && t.status !== 'Resolved').length;
-    const criticalTickets = tickets.filter(t => t.priority === 'Critical' && t.status !== 'Resolved' && t.status !== 'Closed').length;
+    const criticalTickets = tickets.filter(t => (t.priority === 'Critical' || t.priority === 'High') && t.status !== 'Resolved' && t.status !== 'Closed').length;
 
     const pendingTasks = tasks.filter(t => t.status === 'Pending' || t.status === 'In Progress').length;
     
     const totalContacts = contacts.length;
     const newContacts = contacts.filter(c => c.status === 'New').length;
+
+    // --- CHART DATA GENERATION (REAL TIME) ---
+
+    // 1. Sales Activity (Last 7 Days)
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        return { date: d.toISOString().split('T')[0], label: d.toLocaleDateString('en-US', { weekday: 'short' }) };
+    });
+
+    const salesTrend = last7Days.map(day => {
+        const count = opportunities.filter(op => {
+             // Assuming op.createdAt exists (Common Mongoose timestamp)
+             return op.createdAt && op.createdAt.startsWith(day.date);
+        }).length;
+        return { label: day.label, value: count };
+    });
+
+    // 2. Revenue Trend (Last 6 Months)
+    const last6Months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date();
+        d.setMonth(d.getMonth() - (5 - i));
+        return { 
+           key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, // YYYY-MM
+           label: d.toLocaleDateString('en-US', { month: 'short' }) 
+        };
+    });
+
+    const revenueTrend = last6Months.map(month => {
+        const total = invoices
+        .filter(inv => inv.createdAt && inv.createdAt.startsWith(month.key))
+        .reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+        return { label: month.label, value: total };
+    });
 
     const dashboardData = {
       overview: {
@@ -63,6 +97,10 @@ exports.getDashboardData = async (req, res) => {
         newLeads: newContacts,
         overdueInvoices,
         criticalTickets
+      },
+      charts: {
+          salesTrend,   // [{ label: 'Mon', value: 2 }, ...]
+          revenueTrend  // [{ label: 'Jan', value: 5000 }, ...]
       },
       breakdown: {
         sales: {

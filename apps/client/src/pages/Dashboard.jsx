@@ -3,8 +3,12 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
     Users, DollarSign, TrendingUp, AlertCircle, 
-    CheckCircle, BarChart3, ArrowRight, Clock 
+    CheckCircle, BarChart3, Activity, ArrowUpRight, ArrowRight
 } from 'lucide-react';
+import { 
+    AreaChart, Area, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer, 
+    BarChart, Bar, CartesianGrid, Cell
+} from 'recharts';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ClientDashboard from './ClientDashboard';
@@ -16,13 +20,8 @@ const Dashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    if (user?.role === 'Client') {
-        return <ClientDashboard />;
-    }
-
-    if (user?.role === 'Employee') {
-        return <EmployeeDashboard />;
-    }
+    if (user?.role === 'Client') return <ClientDashboard />;
+    if (user?.role === 'Employee') return <EmployeeDashboard />;
 
     useEffect(() => {
         const fetchAnalytics = async () => {
@@ -35,198 +34,264 @@ const Dashboard = () => {
                 setLoading(false);
             }
         };
-
         fetchAnalytics();
     }, []);
 
     if (loading) return <LoadingSpinner message="Loading Analytics..." />;
 
-    const { overview, actionItems, breakdown } = data || { 
-        overview: {}, actionItems: {}, breakdown: { sales: {}, finance: {}, support: {} } 
+    const { overview, actionItems, breakdown, charts } = data || { 
+        overview: {}, actionItems: {}, breakdown: { sales: {}, finance: {}, support: {} }, charts: { salesTrend: [], revenueTrend: [] }
     };
 
+    // --- Data Preparation ---
+    const salesTrendData = charts?.salesTrend?.map(d => ({ ...d, name: d.label })) || [];
+    const revenueData = charts?.revenueTrend?.map(d => ({ name: d.label, Invoiced: d.value })) || [];
+
+    // --- Professional Components ---
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-stone-900 text-white text-xs p-2 rounded shadow-xl">
+                    <p className="font-bold mb-1">{label}</p>
+                    <p>{payload[0].value.toLocaleString()} {payload[0].name === 'Invoiced' ? 'USD' : ''}</p>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const ProgressBar = ({ label, value, color }) => (
+        <div className="mb-5">
+            <div className="flex justify-between items-end mb-1">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">{label}</span>
+                <span className="text-xs font-bold text-stone-900">{value}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-stone-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(value, 100)}%` }} />
+            </div>
+        </div>
+    );
+
     return (
-        <div className="p-8 bg-stone-50 min-h-screen overflow-y-auto font-sans">
-            <div className="flex justify-between items-end mb-10">
+        <div className="p-8 bg-[#F4F5F7] min-h-screen overflow-y-auto font-sans text-stone-800">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-stone-900 tracking-tight">Executive Dashboard <span className="text-amber-600">.</span></h1>
-                    <p className="text-stone-500 font-medium mt-1">Real-time overview of your company's performance.</p>
+                    <h1 className="text-2xl font-bold text-stone-900 tracking-tight">Executive Overview</h1>
+                    <p className="text-stone-500 text-sm font-medium mt-1">Performance metrics for {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
                 </div>
-                <div className="flex gap-4">
-                    <button className="px-6 py-2.5 bg-white border border-stone-200 rounded-xl text-sm font-black text-stone-600 hover:bg-stone-50 transition-all shadow-sm">
-                        Download Report
-                    </button>
-                    <button onClick={() => window.location.reload()} className="px-6 py-2.5 bg-amber-600 text-white rounded-xl text-sm font-black hover:bg-amber-700 transition-all shadow-lg shadow-amber-200">
-                        Refresh Data
-                    </button>
-                </div>
+                <button onClick={() => window.location.reload()} className="px-5 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs font-bold hover:bg-stone-50 transition-all shadow-sm">
+                    Refresh Data
+                </button>
             </div>
 
-            {/* Metrics Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <MetricCard 
-                    title="Revenue Potential" 
-                    value={`$${overview.totalRevenuePotential?.toLocaleString() || '0'}`} 
-                    icon={<DollarSign className="text-amber-600" />} 
-                    path="/app/sales"
-                />
-                <MetricCard 
-                    title="Total Collected" 
-                    value={`$${overview.totalCollected?.toLocaleString() || '0'}`} 
-                    icon={<TrendingUp className="text-emerald-600" />} 
-                    path="/app/invoices"
-                />
-                <MetricCard 
-                    title="Active Deals" 
-                    value={overview.totalDeals || '0'} 
-                    icon={<BarChart3 className="text-blue-600" />} 
-                    sub={`Win Rate: ${overview.winRate}`}
-                    path="/app/sales"
-                />
-                <MetricCard 
-                    title="Total Contacts" 
-                    value={overview.totalContacts || '0'} 
-                    icon={<Users className="text-stone-600" />} 
-                    path="/app/contacts"
-                />
-            </div>
+            {/* MAIN LAYOUT: Hero Left (40%) / Grid Right (60%) */}
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
+                
+                {/* 1. HERO REPORT CARD (KPI Summary) */}
+                <div className="xl:col-span-2 bg-white rounded-xl shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-stone-100 p-8 flex flex-col justify-between relative overflow-hidden">
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-center mb-8">
+                            <div>
+                                <h3 className="text-lg font-bold text-stone-900">Performance Report</h3>
+                                <p className="text-xs text-stone-400 font-bold uppercase tracking-widest mt-1">Key Indicators</p>
+                            </div>
+                            <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center">
+                                <Activity size={20} />
+                            </div>
+                        </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-                {/* Sales Breakdown */}
-                <div 
-                    onClick={() => navigate('/app/sales')}
-                    className="lg:col-span-2 bg-white rounded-3xl border border-stone-200 p-8 shadow-sm cursor-pointer hover:border-amber-200 transition-all"
-                >
-                    <h3 className="text-xl font-black text-stone-900 mb-6">Sales Pipeline Status</h3>
-                    <div className="grid grid-cols-3 gap-6">
-                        <div className="p-6 bg-stone-50 rounded-2xl text-center">
-                            <p className="text-sm font-bold text-stone-500 uppercase tracking-widest mb-2">Active</p>
-                            <p className="text-3xl font-black text-stone-900">{breakdown.sales.active}</p>
+                        {/* Progress Section */}
+                        <div className="pr-4">
+                            <ProgressBar label="Win Rate" value={parseInt(overview.winRate) || 0} color="bg-emerald-500" />
+                            <ProgressBar label="Collection Efficiency" value={breakdown.finance.totalInvoiced > 0 ? Math.round((breakdown.finance.collected / breakdown.finance.totalInvoiced) * 100) : 0} color="bg-amber-500" />
+                            <ProgressBar label="Active Pipeline Ratio" value={overview.totalDeals > 0 ? Math.round((breakdown.sales.active / overview.totalDeals) * 100) : 0} color="bg-blue-500" />
                         </div>
-                        <div className="p-6 bg-emerald-50 rounded-2xl text-center">
-                            <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-2">Won</p>
-                            <p className="text-3xl font-black text-emerald-700">{breakdown.sales.won}</p>
+                    </div>
+
+                    {/* Bottom Chart Area */}
+                    <div className="mt-8">
+                        <div className="flex items-center gap-2 mb-4">
+                            <div className="w-2 h-2 rounded-full bg-stone-900"></div>
+                            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Daily Sales Performance</p>
                         </div>
-                        <div className="p-6 bg-rose-50 rounded-2xl text-center">
-                            <p className="text-sm font-bold text-rose-600 uppercase tracking-widest mb-2">Lost</p>
-                            <p className="text-3xl font-black text-rose-700">{breakdown.sales.lost}</p>
+                        <div className="h-48 -mx-2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis 
+                                        dataKey="name" 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                        tick={{ fontSize: 10, fill: '#a8a29e', fontWeight: 'bold' }} 
+                                        dy={10}
+                                    />
+                                    <RechartsTooltip 
+                                        content={<CustomTooltip />} 
+                                        cursor={{fill: 'rgba(0,0,0,0.03)'}}
+                                    />
+                                    <Bar dataKey="Invoiced" radius={[6, 6, 6, 6]} barSize={32}>
+                                        {revenueData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={[
+                                                '#f59e0b', '#10b981', '#3b82f6', '#6366f1', '#ec4899', 
+                                                '#8b5cf6', '#06b6d4', '#14b8a6', '#f97316', '#db2777'
+                                            ][index % 10]} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
                 </div>
 
-                {/* Billing Summary */}
-                <div 
-                    onClick={() => navigate('/app/invoices')}
-                    className="bg-stone-900 rounded-3xl p-8 text-white shadow-xl cursor-pointer hover:ring-2 hover:ring-amber-500 transition-all"
-                >
-                    <h3 className="text-xl font-black mb-6">Financial Overview</h3>
-                    <div className="space-y-6">
-                        <div>
-                            <div className="flex justify-between text-sm font-bold mb-2">
-                                <span className="text-stone-400">Total Invoiced</span>
-                                <span>${breakdown.finance.totalInvoiced?.toLocaleString()}</span>
-                            </div>
-                            <div className="w-full h-2 bg-stone-800 rounded-full overflow-hidden">
-                                <div 
-                                    className="h-full bg-amber-500" 
-                                    style={{ width: `${breakdown.finance.totalInvoiced > 0 ? (breakdown.finance.collected / breakdown.finance.totalInvoiced) * 100 : 0}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 pt-4">
-                            <div className="p-4 bg-white/5 rounded-xl">
-                                <p className="text-xs font-bold text-stone-500 uppercase mb-1">Collected</p>
-                                <p className="text-lg font-black text-emerald-400">${breakdown.finance.collected?.toLocaleString() || 0}</p>
-                            </div>
-                            <div className="p-4 bg-white/5 rounded-xl">
-                                <p className="text-xs font-bold text-stone-500 uppercase mb-1">Pending</p>
-                                <p className="text-lg font-black text-amber-500">${breakdown.finance.pending?.toLocaleString() || 0}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Action Items */}
-            <div>
-                <h3 className="text-xl font-black text-stone-900 mb-6 flex items-center gap-2">
-                    Action Items Required
-                    <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-[10px] font-black rounded uppercase">Urgent</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <ActionCard 
-                        title="Overdue Invoices" 
-                        count={actionItems.overdueInvoices} 
-                        status={actionItems.overdueInvoices > 0 ? 'critical' : 'success'}
+                {/* 2. METRIC GRID (Right Side) */}
+                <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Revenue - Deep Navy */}
+                    <MetricCard 
+                        title="Total Revenue" 
+                        value={`$${(overview.totalRevenuePotential / 1000).toFixed(1)}k`}
+                        label="Projected Income"
+                        path="/app/sales"
+                        theme="navy"
+                        icon={<DollarSign size={24} />}
+                    />
+                    {/* Deals - Emerald */}
+                    <MetricCard 
+                        title="Active Deals" 
+                        value={overview.totalDeals}
+                        label="Pipeline Volume"
+                        path="/app/sales"
+                        theme="emerald"
+                        icon={<BarChart3 size={24} />}
+                    />
+                    {/* Collections - Amber */}
+                    <MetricCard 
+                        title="Cash Collected" 
+                        value={`$${(overview.totalCollected / 1000).toFixed(1)}k`}
+                        label="Realized Revenue"
                         path="/app/invoices"
+                        theme="amber"
+                        icon={<CheckCircle size={24} />}
                     />
-                    <ActionCard 
+                    {/* Tickets - Crimson */}
+                    <MetricCard 
                         title="Critical Tickets" 
-                        count={actionItems.criticalTickets} 
-                        status={actionItems.criticalTickets > 0 ? 'critical' : 'success'}
+                        value={actionItems.criticalTickets}
+                        label="Requires Action"
                         path="/app/tickets"
-                    />
-                    <ActionCard 
-                        title="Pending Tasks" 
-                        count={actionItems.pendingTasks} 
-                        status="warning"
-                        path="/app/tasks"
-                    />
-                    <ActionCard 
-                        title="New Leads" 
-                        count={actionItems.newLeads} 
-                        status="info"
-                        path="/app/contacts"
+                        theme="rose"
+                        icon={<AlertCircle size={24} />}
                     />
                 </div>
+            </div>
+
+            {/* 3. BOTTOM SPARKLINE ROW */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Leads Sparkline */}
+                <SparkCard 
+                    title="Total Clients" 
+                    value={overview.totalContacts} 
+                    trend="+5 New" 
+                    path="/app/contacts"
+                    chart={
+                        <AreaChart data={salesTrendData}>
+                            <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fill="#eff6ff" />
+                        </AreaChart>
+                    } 
+                />
+
+                {/* Sales Volume Bar */}
+                <SparkCard 
+                    title="Weekly Sales" 
+                    value={breakdown.sales.active} 
+                    trend="Pipeline Active" 
+                    path="/app/sales"
+                    chart={
+                        <BarChart data={salesTrendData}>
+                            <Bar dataKey="value" fill="#f59e0b" radius={[2,2,2,2]} />
+                        </BarChart>
+                    } 
+                />
+
+                {/* Support Sparkline */}
+                <SparkCard 
+                    title="Support Load" 
+                    value={breakdown.support?.openTickets || 0} 
+                    trend="Open Tickets" 
+                    path="/app/tickets"
+                    chart={
+                        <AreaChart data={[{v:5},{v:8},{v:4},{v:12},{v:3},{v:7},{v:9}]}>
+                            <Area type="monotone" dataKey="v" stroke="#ec4899" strokeWidth={2} fill="#fce7f3" />
+                        </AreaChart>
+                    } 
+                />
             </div>
         </div>
     );
 };
 
-const MetricCard = ({ title, value, icon, trend, sub, path }) => {
+// --- Sub-Components ---
+const MetricCard = ({ title, value, label, path, theme, icon }) => {
     const navigate = useNavigate();
+    
+    // Enterprise Color Palettes
+    const themes = {
+        navy: 'bg-[#1e293b] text-white',
+        emerald: 'bg-[#059669] text-white',
+        amber: 'bg-[#d97706] text-white',
+        rose: 'bg-[#be123c] text-white', 
+    };
+
     return (
         <div 
-            onClick={() => path && navigate(path)}
-            className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm hover:shadow-md hover:border-amber-200 transition-all cursor-pointer group"
+            onClick={() => navigate(path)}
+            className={`${themes[theme]} rounded-xl p-6 shadow-lg shadow-stone-200 cursor-pointer transition-transform hover:-translate-y-1 relative overflow-hidden group`}
         >
-            <div className="flex justify-between items-start mb-4">
-                <div className="w-10 h-10 bg-stone-50 rounded-xl flex items-center justify-center group-hover:bg-amber-50 group-hover:text-amber-600 transition-colors">
+            <div className="absolute right-0 top-0 p-6 opacity-10 scale-150 rotate-12 transition-transform group-hover:rotate-0">
+                {icon}
+            </div>
+            
+            <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="w-12 h-12 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 border border-white/10">
                     {icon}
                 </div>
-                {trend && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">{trend}</span>}
+                <div>
+                    <h3 className="text-3xl font-bold tracking-tight mb-1">{value}</h3>
+                    <p className="text-xs font-bold uppercase tracking-widest opacity-80">{title}</p>
+                    <div className="mt-4 pt-4 border-t border-white/10 flex items-center gap-2">
+                        <ArrowUpRight size={14} className="opacity-70" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide opacity-70">{label}</span>
+                    </div>
+                </div>
             </div>
-            <h3 className="text-2xl font-black text-stone-900 mb-1">{value}</h3>
-            <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{title}</p>
-            {sub && <p className="text-[10px] font-bold text-stone-500 mt-2">{sub}</p>}
         </div>
     );
 };
 
-const ActionCard = ({ title, count, status, path }) => {
+const SparkCard = ({ title, value, trend, chart, path }) => {
     const navigate = useNavigate();
-    const styles = {
-        critical: 'border-rose-100 bg-rose-50 text-rose-700 hover:border-rose-300',
-        success: 'border-emerald-100 bg-emerald-50 text-emerald-700 hover:border-emerald-300',
-        warning: 'border-amber-100 bg-amber-50 text-amber-700 hover:border-amber-300',
-        info: 'border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-300'
-    };
-
     return (
         <div 
-            onClick={() => path && navigate(path)}
-            className={`p-5 rounded-2xl border-2 ${styles[status]} flex items-center justify-between cursor-pointer transition-all hover:shadow-md`}
+            onClick={() => navigate(path)}
+            className="bg-white rounded-xl border border-stone-200 p-6 shadow-sm hover:border-stone-300 transition-all cursor-pointer h-48 flex flex-col justify-between"
         >
-            <div>
-                <p className="text-xs font-black uppercase tracking-widest opacity-70 mb-1">{title}</p>
-                <p className="text-2xl font-black">{count}</p>
+            <div className="flex justify-between items-start mb-2">
+                <div>
+                    <h3 className="text-2xl font-bold text-stone-900">{value}</h3>
+                    <p className="text-xs font-bold text-stone-400 uppercase tracking-widest">{title}</p>
+                </div>
+                <div className="bg-stone-50 px-2 py-1 rounded text-[10px] font-bold text-stone-500">
+                    {trend}
+                </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-white/50 flex items-center justify-center">
-                <ArrowRight size={20} />
+            <div className="h-24 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    {chart}
+                </ResponsiveContainer>
             </div>
         </div>
     );
-}
+};
 
 export default Dashboard;

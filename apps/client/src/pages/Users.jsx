@@ -95,7 +95,24 @@ const Users = () => {
       } else {
         // Create new user
         await axios.post('/api/auth/create-user', payload);
-        setSuccess('User created successfully!');
+        
+        // AUTO-CREATION: If Role is Client, also create a CRM Contact
+        if (payload.role === 'Client') {
+             try {
+                 await axios.post('/api/contacts', {
+                     name: payload.name,
+                     email: payload.email,
+                     company: payload.department || 'Independent',
+                     status: 'Customer' 
+                 });
+                 setSuccess('User created & Linked to CRM Contact!');
+             } catch (contactErr) {
+                 console.error("Auto-contact creation failed", contactErr);
+                 setSuccess('User created, but failed to create Contact profile (Email might exist).');
+             }
+        } else {
+             setSuccess('User created successfully!');
+        }
       }
       
       setFormData({
@@ -256,6 +273,7 @@ const Users = () => {
                                     <option value="Admin">Admin</option>
                                     <option value="Sales">Sales</option>
                                     <option value="HR">HR</option>
+                                    <option value="Client">Client</option>
                                 </select>
                             </div>
                             <div>

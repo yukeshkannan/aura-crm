@@ -7,7 +7,10 @@ const { formatResponse } = require('../../../packages/utils');
 exports.getContacts = async (req, res) => {
   try {
     console.log('[Contact Service] Fetching all contacts...');
-    const contacts = await Contact.find().sort({ createdAt: -1 });
+    const { email } = req.query;
+    let query = {};
+    if (email) query.email = email;
+    const contacts = await Contact.find(query).sort({ createdAt: -1 });
     console.log(`[Contact Service] Found ${contacts.length} contacts`);
     formatResponse(res, 200, 'Contacts retrieved successfully', contacts);
   } catch (err) {

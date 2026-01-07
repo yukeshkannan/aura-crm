@@ -35,6 +35,7 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
 
+    // Login User - Update Response
     if (user && (await user.matchPassword(password))) {
       const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
       formatResponse(res, 200, 'Login successful', { 
@@ -43,7 +44,8 @@ exports.login = async (req, res) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          profilePic: user.profilePic // Added profilePic
         }
       });
     } else {
@@ -164,10 +166,35 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// Update User (Admin Only)
+// Get Single User By ID
+exports.getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return formatResponse(res, 404, 'User not found');
+        }
+        res.status(200).json({
+            success: true,
+            data: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                designation: user.designation,
+                department: user.department,
+                salary: user.salary,
+                profilePic: user.profilePic
+            }
+        });
+    } catch (error) {
+        formatResponse(res, 500, error.message);
+    }
+};
+
+// Update User (Admin Only or Self if allowed)
 exports.updateUser = async (req, res) => {
   try {
-    const { name, email, role, designation, department, salary } = req.body;
+    const { name, email, role, designation, department, salary, profilePic } = req.body;
     const user = await User.findById(req.params.id);
 
     if (!user) {
@@ -179,7 +206,8 @@ exports.updateUser = async (req, res) => {
     user.role = role || user.role;
     user.designation = designation || user.designation;
     user.department = department || user.department;
-    if (salary) user.salary = salary; // Add salary update
+    if (salary) user.salary = salary;
+    if (profilePic !== undefined) user.profilePic = profilePic; // Update profilePic
 
     if (req.body.password) {
       user.password = req.body.password;
@@ -193,7 +221,8 @@ exports.updateUser = async (req, res) => {
         role: user.role,
         designation: user.designation,
         department: user.department,
-        salary: user.salary
+        salary: user.salary,
+        profilePic: user.profilePic
     });
   } catch (error) {
     formatResponse(res, 500, error.message);

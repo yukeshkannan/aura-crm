@@ -7,6 +7,8 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
+// app.use(express.json({ limit: '50mb' }));
+// app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Define Service URLs with internal Docker names
 const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:5001';
@@ -24,7 +26,10 @@ const HR_URL = process.env.HR_SERVICE_URL || 'http://hr-service:5012';
 
 // Helper for Proxy Routing
 const createProxy = (path, target) => {
-    app.use(path, proxy(target, {
+    app.use(path, (req, res, next) => {
+        console.log(`[Gateway] Proxying ${req.method} ${req.url} -> ${target}`);
+        next();
+    }, proxy(target, {
         proxyReqPathResolver: (req) => `${path}${req.url}`,
         proxyErrorHandler: (err, res, next) => {
             console.error(`[Gateway Error] Source: ${path} -> ${err.message}`);
@@ -49,7 +54,7 @@ createProxy('/api/search', SEARCH_URL);
 createProxy('/api/attendance', HR_URL);
 createProxy('/api/payroll', HR_URL);
 
-app.use(express.json());
+// app.use(express.json());
 
 app.get('/', (req, res) => res.json({ message: "Aura Gateway Active 🚀" }));
 app.get('/api', (req, res) => res.json({ message: "Aura API Active ✨" }));

@@ -15,9 +15,12 @@ if (apiUrl && apiUrl !== '/') {
     axios.defaults.baseURL = ''; 
 }
 
+import { Toaster } from 'react-hot-toast';
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
+      <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <App />
     </BrowserRouter>
   </StrictMode>,

@@ -25,10 +25,12 @@ const Explore = () => {
                 const prodRes = await axios.get('/api/products');
                 setProducts(prodRes.data.data || []);
 
-                // 2. Fetch Contact ID
-                const res = await axios.get('/api/contacts');
-                const contact = (res.data.data || []).find(c => c.email === user?.email);
-                if (contact) setContactId(contact._id);
+                // 2. Fetch Contact ID (Filtered by Email)
+                if (user?.email) {
+                    const res = await axios.get(`/api/contacts?email=${user.email}`);
+                    const contact = (res.data.data || [])[0]; // Expecting single match
+                    if (contact) setContactId(contact._id);
+                }
                 
                 setLoading(false);
             } catch (err) {
@@ -57,23 +59,45 @@ const Explore = () => {
         }
     };
 
-    const handleInquiry = async (serviceName) => {
-        if (!contactId) {
-            alert("Error: Contact information not found. Please contact support.");
-            return;
-        }
+    const handleInquiry = async (product) => {
+        let activeContactId = contactId;
 
         setSending(true);
         try {
-            // FIX: Added required 'customerId' field to the payload
-            await axios.post('/api/tickets', {
-                customerId: contactId,
-                title: `Service Inquiry: ${serviceName}`,
-                description: `Client ${user?.name} (${user?.email}) expressed interest in the "${serviceName}" service via the Explore portal.`,
-                priority: 'High',
-                status: 'Open'
+            // Self-Correction: If no contact ID, try to create one now
+            if (!activeContactId) {
+                console.log("No Contact ID found. Attempting to auto-create...");
+                try {
+                    const newContactRes = await axios.post('/api/contacts', {
+                        name: user.name,
+                        email: user.email,
+                        company: 'Independent',
+                        status: 'Customer'
+                    });
+                    activeContactId = newContactRes.data.data._id;
+                    setContactId(activeContactId);
+                    console.log("Auto-created contact:", activeContactId);
+                } catch (createErr) {
+                    console.error("Failed to auto-create contact:", createErr);
+                    // Fallback to error if filtered search also failed (likely duplicate email but not found via query?)
+                    // If duplicate email error (400), we should try to fetch it again? 
+                    // But we already tried fetching in useEffect.
+                    alert("Error: CRM Profile not found and could not be created. Please contact support.");
+                    setSending(false);
+                    return;
+                }
+            }
+
+            // Create Opportunity (Deal)
+            await axios.post('/api/opportunities', {
+                contactId: activeContactId,
+                title: `Inquiry: ${product.name}`,
+                amount: product.price || 0,
+                stage: 'New',
+                description: `Client ${user?.name} (${user?.email}) inquired about ${product.name} from Explore page.`
             });
-            setSentId(serviceName);
+            
+            setSentId(product.name);
             setTimeout(() => setSentId(null), 4000);
         } catch (err) {
             console.error("Booking failed:", err);
@@ -158,7 +182,7 @@ const Explore = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => handleInquiry(product.name)}
+                                    onClick={() => handleInquiry(product)}
                                     disabled={sending || sentId === product.name}
                                     className={`mt-10 py-3 px-6 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${
                                         sentId === product.name 

@@ -13,9 +13,22 @@ const opportunitySchema = new mongoose.Schema({
   },
   stage: {
     type: String,
-    enum: ['New', 'Discovery', 'Proposal', 'Negotiation', 'Won', 'Lost'],
+    enum: ['New', 'In Execution', 'Review', 'Completed', 'Cancelled'],
     default: 'New'
   },
+  modules: [{
+    name: String,
+    status: {
+      type: String,
+      enum: ['Pending', 'In Progress', 'Completed'],
+      default: 'Pending'
+    },
+    clientStatus: {
+      type: String,
+      enum: ['Pending', 'In Progress', 'Completed'],
+      default: 'Pending'
+    }
+  }],
   contactId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Contact',

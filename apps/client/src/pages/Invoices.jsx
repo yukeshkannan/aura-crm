@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { 
@@ -30,13 +31,14 @@ const Invoices = () => {
     const [showEmailConfirm, setShowEmailConfirm] = useState(null);
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        if (user) fetchData();
+    }, [user]);
 
     const fetchData = async () => {
+        if (!user) return;
         try {
             const [invRes, contactRes, prodRes] = await Promise.allSettled([
-                axios.get('/api/invoices'),
+                axios.get(isClient ? `/api/invoices?email=${user?.email}` : '/api/invoices'),
                 !isClient ? axios.get('/api/contacts') : Promise.resolve({ data: { data: [] } }),
                 !isClient ? axios.get('/api/products') : Promise.resolve({ data: { data: [] } })
             ]);
@@ -80,8 +82,13 @@ const Invoices = () => {
 
     const calculateTotal = () => formData.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
         try {
             const payload = { ...formData, totalAmount: calculateTotal() };
             if (editingId) {
@@ -92,7 +99,9 @@ const Invoices = () => {
             setIsDrawerOpen(false);
             fetchData();
         } catch (err) {
-            alert("Error saving invoice");
+            toast.error("Error saving invoice");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -102,7 +111,7 @@ const Invoices = () => {
             setShowDeleteConfirm(null);
             fetchData();
         } catch (err) {
-            alert("Error deleting invoice");
+            toast.error("Error deleting invoice");
         }
     };
 
@@ -110,10 +119,10 @@ const Invoices = () => {
         try {
             // Simulated payment update
             await axios.put(`/api/invoices/${invoice._id}`, { ...invoice, status: 'Paid' });
-            alert("Payment successful!");
+            toast.success("Payment processed successfully!");
             fetchData();
         } catch (err) {
-            alert("Payment failed");
+            toast.error("Payment failed. Please try again.");
         }
     }
 
@@ -303,8 +312,12 @@ const Invoices = () => {
 
                      <div className="px-8 py-6 border-t border-stone-200 bg-stone-50 flex gap-3">
                          <button onClick={() => setIsDrawerOpen(false)} className="flex-1 py-3 text-stone-400 font-bold hover:text-stone-900 transition-colors">Cancel</button>
-                         <button onClick={handleSubmit} className="flex-1 py-3 bg-stone-900 text-white rounded-xl font-black text-sm hover:bg-stone-800 shadow-lg shadow-stone-200 transition-all">
-                             {editingId ? 'Update Invoice' : 'Issue Invoice'}
+                         <button 
+                             onClick={handleSubmit} 
+                             disabled={isSubmitting}
+                             className={`flex-1 py-3 bg-stone-900 text-white rounded-xl font-black text-sm hover:bg-stone-800 shadow-lg shadow-stone-200 transition-all ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                         >
+                             {isSubmitting ? 'Processing...' : (editingId ? 'Update Invoice' : 'Issue Invoice')}
                          </button>
                      </div>
                  </div>

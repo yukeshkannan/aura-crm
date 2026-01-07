@@ -1,0 +1,7 @@
+{
+    email yukesh785.in@gmail.com
+}
+
+{$DOMAIN_NAME} {
+    reverse_proxy gateway:5000
+}

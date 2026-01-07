@@ -68,10 +68,7 @@ const Settings = () => {
 
         setUploading(true);
         try {
-            // 1. Upload to Document Service
-            const uploadRes = await axios.post('/api/documents/upload', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            const uploadRes = await axios.post('/api/documents/upload', formData);
 
             const imageUrl = uploadRes.data.data.url;
 

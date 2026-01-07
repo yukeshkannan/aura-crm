@@ -17,13 +17,15 @@ const Products = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('All');
     
+    // Updated State with Image
     const [formData, setFormData] = useState({
         name: '',
         sku: '',
         price: '',
         category: 'Service',
         description: '',
-        stock: 0
+        stock: 0,
+        image: ''
     });
 
     useEffect(() => {
@@ -37,6 +39,7 @@ const Products = () => {
     const fetchProducts = async () => {
         try {
             const res = await axios.get('/api/products');
+            console.log("Fetched Products Data:", res.data.data); // DEBUG LOG
             setProducts(res.data.data);
             setLoading(false);
         } catch (err) {
@@ -79,7 +82,8 @@ const Products = () => {
             price: product.price,
             category: product.category,
             description: product.description || '',
-            stock: product.stock
+            stock: product.stock,
+            image: product.image || ''
         });
         setIsDrawerOpen(true);
     };
@@ -106,26 +110,39 @@ const Products = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        const payload = {
+            ...formData,
+            price: Number(formData.price),
+            stock: Number(formData.stock),
+        };
+        console.log("Submitting Product:", payload);
+
         try {
             if (editingProduct) {
-                await axios.put(`/api/products/${editingProduct._id}`, formData);
+                await axios.put(`/api/products/${editingProduct._id}`, payload);
             } else {
-                await axios.post('/api/products', formData);
+                await axios.post('/api/products', payload);
             }
             
-            setFormData({ name: '', sku: '', price: '', category: 'Service', description: '', stock: 0 });
+            setFormData({ name: '', sku: '', price: '', category: 'Service', description: '', stock: 0, image: '' });
             setIsDrawerOpen(false);
             setEditingProduct(null);
             fetchProducts();
         } catch (err) {
             console.error("Failed to save product", err);
-            alert("Failed to save product. Check SKU uniqueness.");
+            // Log server error message if available
+            if (err.response?.data?.error) {
+                alert(`Error: ${err.response.data.error}`);
+            } else {
+                alert("Failed to save product. Check SKU uniqueness.");
+            }
         }
     };
 
     const openCreateDrawer = () => {
         setEditingProduct(null);
-        setFormData({ name: '', sku: '', price: '', category: 'Service', description: '', stock: 0 });
+        setFormData({ name: '', sku: '', price: '', category: 'Service', description: '', stock: 0, image: '' });
         setIsDrawerOpen(true);
     };
 
@@ -200,14 +217,29 @@ const Products = () => {
                                 const catColor = getCategoryColor(product.category);
                                 return (
                                     <div key={product._id} className="bg-white rounded-[32px] border border-stone-200 overflow-hidden group hover:shadow-2xl hover:shadow-stone-200/50 hover:-translate-y-1.5 transition-all duration-500 relative flex flex-col">
-                                        <div className="h-44 bg-stone-50/50 flex items-center justify-center border-b border-stone-100 relative overflow-hidden">
-                                            <div className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-                                            <ShoppingBag size={56} className="text-stone-200 group-hover:text-amber-200 group-hover:scale-110 transition-all duration-500 relative z-10" />
+                                        <div className="h-44 bg-stone-50/50 flex items-center justify-center border-b border-stone-100 relative overflow-hidden group-hover:bg-white transition-colors">
                                             
-                                            <div className="absolute top-4 left-4">
+                                            {/* 1. Background Pattern (Always Visible) */}
+                                            <div className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+                                            
+                                            {/* 2. Fallback Icon (Always there, lower z-index) */}
+                                            <ShoppingBag size={56} className="absolute text-stone-200 group-hover:text-amber-200 group-hover:scale-110 transition-all duration-500 z-0" />
+
+                                            {/* 3. Product Image (Overlay, higher z-index) */}
+                                            {product.image && (
+                                                <img 
+                                                    src={product.image} 
+                                                    alt={product.name} 
+                                                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 z-10" 
+                                                    onError={(e) => { e.target.style.display = 'none'; }} 
+                                                />
+                                            )}
+
+                                            {/* 4. Category Tag (Highest z-index) */}
+                                            <div className="absolute top-4 left-4 z-20">
                                                 <span 
-                                                    className="text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm border border-white/50"
-                                                    style={{ backgroundColor: catColor.bg, color: catColor.text }}
+                                                    className="text-[10px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm border border-white/50 backdrop-blur-sm bg-white/50"
+                                                    style={{ color: catColor.text, borderColor: catColor.bg }}
                                                 >
                                                     {product.category}
                                                 </span>
@@ -283,6 +315,23 @@ const Products = () => {
                                         className="w-full px-5 py-3.5 rounded-2xl border border-stone-200 bg-stone-50/30 text-stone-900 font-bold focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none"
                                         placeholder="e.g. Enterprise Cloud License" 
                                     />
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Image URL</label>
+                                    <input 
+                                        type="url" 
+                                        name="image" 
+                                        value={formData.image} 
+                                        onChange={handleChange} 
+                                        className="w-full px-5 py-3.5 rounded-2xl border border-stone-200 bg-stone-50/30 text-stone-900 font-medium focus:border-amber-500 focus:ring-4 focus:ring-amber-500/10 transition-all outline-none"
+                                        placeholder="https://example.com/product-image.png" 
+                                    />
+                                     {formData.image && (
+                                        <div className="mt-2 h-24 w-full rounded-2xl border border-stone-200 overflow-hidden bg-stone-50">
+                                            <img src={formData.image} alt="Preview" className="h-full w-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-6">
