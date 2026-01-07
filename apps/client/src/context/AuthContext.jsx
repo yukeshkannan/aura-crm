@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 
 const rawApiUrl = import.meta.env.VITE_API_URL;
 // Bulletproof fix: If we are on Vercel, force relative path (empty string)
-const isVercel = window.location.hostname.includes('vercel.app');
-let API_URL = isVercel ? '' : (rawApiUrl || '');
+// Always use the configured API URL (from Vercel env vars)
+let API_URL = rawApiUrl || '';
 
 // CRITICAL FIX: Ensure API_URL does not end with slash, to avoid //api (double slash)
 if (API_URL === '/' || API_URL.endsWith('/')) {
