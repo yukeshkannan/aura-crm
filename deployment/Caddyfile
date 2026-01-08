@@ -3,5 +3,6 @@
 }
 
 {$DOMAIN_NAME} {
-    reverse_proxy gateway:5000
+    reverse_proxy /api/* gateway:5000
+    reverse_proxy * client:80
 }
