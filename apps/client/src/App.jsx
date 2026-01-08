@@ -5,7 +5,10 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Signup from './pages/Signup'; // New
+
 import LandingPage from './pages/LandingPage'; // New
+import ForgotPassword from './pages/Forgotpassword';
+import ResetPassword from './pages/Resetpassword';
 import Users from './pages/Users';
 import Contacts from './pages/Contacts';
 import Opportunities from './pages/Opportunities';
@@ -28,6 +31,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         
         {/* Protected Routes (The "App") */}
         <Route path="/app" element={<ProtectedRoute />}>
