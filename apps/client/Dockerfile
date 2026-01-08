@@ -12,6 +12,10 @@ RUN npm install
 # Copy source and build
 COPY apps/client ./apps/client
 WORKDIR /app/apps/client
+# Handle Env Vars
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # Production stage (using Nginx to serve the static files)

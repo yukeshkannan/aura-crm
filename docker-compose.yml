@@ -129,7 +129,11 @@ services:
     restart: always
 
   client:
-    build: { context: ., dockerfile: apps/client/Dockerfile }
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+      args:
+        - VITE_API_URL=https://aura-crm.duckdns.org
     ports: [ "3000:80" ]
     depends_on: [ gateway ]
     networks: [ aura-network ]
